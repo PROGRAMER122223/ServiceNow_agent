@@ -1,0 +1,25 @@
+# vironment variables
+.env
+.env.*
+
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS junk files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts (optional but recommended)
+build/
+dist/
+*.egg-info/

@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "ServiceNow DB (Local)",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "servicenow",
+      "Username": "snuser",
+      "PassFile": "/pgpass",
+      "SSLMode": "prefer",
+      "Comment": "Auto-registered ServiceNow Customer Care Database"
+    }
+  }
+}
