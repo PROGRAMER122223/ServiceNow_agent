@@ -2,21 +2,19 @@
 
 A natural-language SQL agent for an IT Service Management (ITSM) database modelled on ServiceNow. Ask questions in plain English — the agent inspects the schema, writes the SQL, executes it, and returns a human-readable answer.
 
-Built with **LangGraph**, **LangChain SQL Toolkit**, **Google Gemini 2.5 Flash**, and **PostgreSQL 16**, with **pgAdmin 4** for browser-based database exploration.
+Built with **LangGraph**, **LangChain SQL Toolkit**, **Google Gemini 2.5 Flash**, and **PostgreSQL 16**, with **pgAdmin 4** for browser-based database exploration. A **FastAPI** backend exposes the agent as a REST API, and a single-file **HTML/JS** chat frontend provides a dark command-centre UI — no build step required.
 
 ---
 
 ## Table of Contents
 
 - [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Database Schema](#database-schema)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Running the Agent](#running-the-agent)
+- [Backend API](#backend-api)
+- [Frontend UI](#frontend-ui)
 - [Example Questions](#example-questions)
-- [pgAdmin Access](#pgadmin-access)
-- [Configuration](#configuration)
 - [How It Works](#how-it-works)
 
 ---
@@ -24,72 +22,35 @@ Built with **LangGraph**, **LangChain SQL Toolkit**, **Google Gemini 2.5 Flash**
 ## Architecture
 
 ```
-User Question (plain English)
-        │
+Browser (ui.html :3000)
+        │  HTTP POST /ask
         ▼
-  ┌─────────────┐       system prompt +        ┌──────────────────────┐
-  │  LangGraph  │  ──── conversation ────────▶ │  Gemini 2.5 Flash    │
-  │   Agent     │ ◀──── tool calls / answer ── │  (via Vertex AI)     │
-  └──────┬──────┘                              └──────────────────────┘
-         │ tool calls
-         ▼
+  ┌─────────────────┐      system prompt +        ┌──────────────────────┐
+  │  FastAPI         │ ──── conversation ────────▶ │  Gemini 2.5 Flash    │
+  │  api.py :8000    │ ◀─── tool calls / answer ── │  (via Vertex AI)     │
+  └────────┬─────────┘                             └──────────────────────┘
+           │ invokes
+           ▼
   ┌─────────────────────────────┐
+  │   LangGraph Agent           │
   │   LangChain SQL Toolkit     │
-  │  • list_tables              │
-  │  • get_schema               │
-  │  • query_sql                │
-  │  • query_checker            │
+  │   • list_tables             │
+  │   • get_schema              │
+  │   • query_sql               │
+  │   • query_checker           │
   └──────────────┬──────────────┘
                  │ SQL
                  ▼
-        ┌────────────────┐
-        │  PostgreSQL 16 │  (Docker)
-        │  servicenow DB │
-        └────────────────┘
+        ┌────────────────┐       ┌──────────────┐
+        │  PostgreSQL 16 │       │  pgAdmin 4   │
+        │  :5432         │       │  :5050       │
+        └────────────────┘       └──────────────┘
+              (Docker)                (Docker)
 ```
 
-The graph loops — the LLM can call tools multiple times (e.g. list tables → get schema → run query → refine) before returning a final answer.
+The LangGraph loop runs entirely inside the FastAPI request — the LLM calls tools multiple times (list tables → get schema → run query → refine) before returning a final plain-English answer to the UI.
 
 ---
-
-## Project Structure
-
-```
-servicenow-db/
-├── docker-compose.yml          # Postgres + pgAdmin containers
-├── sample.py                   # LangGraph agent entry point
-├── README.md
-├── initdb/
-│   ├── 01_schema.sql           # Tables, indexes, and summary view
-│   └── 02_seed.sql             # Sample incidents, products, resolutions
-└── pgadmin/
-    ├── servers.json            # Auto-registers Postgres in pgAdmin
-    └── pgpass                  # Passwordless connection for pgAdmin
-```
-
----
-
-## Database Schema
-
-| Table | Description |
-|---|---|
-| `incidents` | ServiceNow-style INC tickets — state, priority, SLA, assignment |
-| `resolutions` | Root cause, steps taken, KB article linked per resolved incident |
-| `work_notes` | Journal entries (agent work notes + customer updates) |
-| `users` | Customers, support agents, and managers |
-| `products` | Electronics catalogue — laptops, phones, printers, networking gear, etc. |
-| `categories` | Hierarchical category tree (Electronics → Laptops, Mobile, Networking …) |
-| `kb_articles` | Knowledge Base articles with view and helpful-vote counts |
-| `v_incident_summary` | Convenience view joining all tables above |
-
-**Priority scale:** 1 = Critical · 2 = High · 3 = Medium · 4 = Low
-
-**Incident states:** `New` · `In Progress` · `On Hold` · `Resolved` · `Closed` · `Cancelled`
-
-The seed data includes **15 realistic electronics incidents** covering Dell, Apple, Samsung, Cisco, Sony, LG, Xbox, Google Pixel, and Amazon Echo devices, complete with work notes, resolutions, and linked KB articles.
-
----
-
 ## Prerequisites
 
 | Requirement | Version |
@@ -113,18 +74,6 @@ cd servicenow-db
 ```bash
 docker compose up -d
 ```
-
-This starts:
-- **Postgres 16** on `localhost:5432` — auto-seeded from `initdb/` on first run
-- **pgAdmin 4** on `http://localhost:5050` — pre-connected to Postgres
-
-Wait ~10 seconds for the seed scripts to complete, then verify:
-
-```bash
-docker compose logs postgres | tail -20
-# Should end with: database system is ready to accept connections
-```
-
 ### 3. Create a Python virtual environment
 
 ```bash
@@ -176,12 +125,11 @@ print(ask("Which agent has the most unresolved tickets?"))
 print(ask("Show me all P1 incidents and their SLA breach status."))
 print(ask("How many Sony incidents have been raised this month?"))
 ```
-
 ---
 
 ## Example Questions
 
-The agent handles any natural-language question about the ITSM data. Here are the 10 included in `sample.py`:
+The agent handles any natural-language question about the ITSM data. Here are the questions included in `sample.py`:
 
 | # | Question |
 |---|---|
@@ -189,32 +137,6 @@ The agent handles any natural-language question about the ITSM data. Here are th
 | 2 | List all Critical (P1) and High (P2) incidents with their assigned agent and current state. |
 | 3 | Which electronics product has the highest number of incidents raised against it? |
 | 4 | Which support agent has resolved the most incidents, and what is their resolution rate? |
----
-![alt text](image.png)
----
-
-## pgAdmin Access
-
-| Field | Value |
-|---|---|
-| URL | http://localhost:5050 |
-| Email | admin@servicenow.local |
-| Password | admin |
-
-The **ServiceNow DB (Local)** server is pre-registered — no manual connection setup needed. Expand **Servers → ServiceNow DB (Local) → Databases → servicenow → Schemas → public → Tables** to browse the schema and data.
-
----
-
-## Configuration
-
-| Variable | File | Default | Description |
-|---|---|---|---|
-| `DB_URL` | `sample.py` | `postgresql://snuser:snpassword@localhost:5432/servicenow` | Postgres connection string |
-| `GOOGLE_CLOUD_PROJECT` | `.env` | _(required)_ | GCP project for Vertex AI |
-| `POSTGRES_USER` | `docker-compose.yml` | `snuser` | DB username |
-| `POSTGRES_PASSWORD` | `docker-compose.yml` | `snpassword` | DB password |
-| `PGADMIN_DEFAULT_EMAIL` | `docker-compose.yml` | `admin@servicenow.local` | pgAdmin login |
-| `PGADMIN_DEFAULT_PASSWORD` | `docker-compose.yml` | `admin` | pgAdmin password |
 
 ---
 

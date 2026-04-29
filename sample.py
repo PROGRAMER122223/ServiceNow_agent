@@ -108,25 +108,8 @@ if __name__ == "__main__":
 
         # Agent performance
         "Which support agent has resolved the most incidents, and what is their resolution rate?",
-
-        # Resolution quality
-        "What are the most common resolution codes used across all resolved incidents?",
-
-        # Knowledge Base
-        "Which KB article has the most helpful votes, and what incident type does it address?",
-
-        # SLA breach
-        "Are there any incidents where the SLA due date has already passed and the ticket is not yet resolved?",
-
-        # Category breakdown
-        "Break down the number of incidents by product category (e.g. Laptops, Mobile Devices, Networking).",
-
-        # Work notes activity
-        "Which incident has the most work notes logged, and what is its current state?",
-
-        # Resolution turnaround
-        "What is the average time (in hours) between an incident being opened and resolved?",
-    ]
+      
+      ]
 
     for q in questions:
         print(f"\n{'='*60}")
